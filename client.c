@@ -8,6 +8,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#define PORT 8080
+
 int main()
 {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -24,13 +26,13 @@ int main()
         perror("gethostbyname failed");
         return 1;
     }
-    printf("Got IP: %s\n", inet_ntoa(*(struct in_addr *)host-->h_addr));
+    printf("Got IP: %s\n", inet_ntoa(*(struct in_addr *)host->h_addr));
 
     //connect to example.com:80
     struct sockaddr_in server_addr;
-    server_addr.sin_family = AD_INET;
-    server_addr.sin_port = htons(80);
-    server_addr.sin_addr = *(struct in_addr *)host-->h_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr = *(struct in_addr *)host->h_addr;
 
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect failed");
