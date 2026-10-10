@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>   // strcasecmp: case-insensitive string compare, used for header names
 #include <signal.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -109,6 +110,51 @@ int main()
     printf("Method: %s\n", method);
     printf("Path: %s\n", path);
     printf("Version: %s\n", version);
+
+    // Step 5: read the header lines that come after the request line.
+    // Each header looks like "Name: value\r\n". The headers end at an empty line, which is
+    // just "\r\n" on its own. That empty line is how HTTP says "headers are finished".
+    char line[BUFFER_SIZE];            // holds one header line at a time
+    char host[256] = {0};              // will hold the value of the Host header
+    char user_agent[256] = {0};        // will hold the value of the User-Agent header
+    char accept[256] = {0};            // will hold the value of the Accept header
+
+    printf("\n--- Raw request headers ---\n");
+    while (1) {
+        ssize_t hn = read_line(new_socket, line, sizeof(line));  // read the next line (reuses our helper)
+        if (hn < 0) { perror("Read failed"); break; }             // read error: stop
+        if (hn == 0) break;                                       // client closed the connection: stop
+
+        // Print the raw line. %s stops at '\0', and the line still carries its "\r\n" so the
+        // output shows exactly what the client sent, including the line endings.
+        printf("RAW: %s", line);
+
+        // The empty line "\r\n" (or just "\n") marks the end of the headers, so stop reading.
+        // Without this check read_line would block forever waiting for data that never comes.
+        if (strcmp(line, "\r\n") == 0 || strcmp(line, "\n") == 0) break;
+
+        // Strip the trailing "\r\n" so we can store clean values.
+        line[strcspn(line, "\r\n")] = '\0';   // strcspn returns the index of the first '\r' or '\n'
+
+        // strchr finds the ':' that separates the name from the value.
+        char *colon = strchr(line, ':');
+        if (!colon) continue;                 // no colon means it isn't a header, skip it
+        *colon = '\0';                        // cut the string at ':' so `line` is now just the name
+        char *value = colon + 1;              // the value starts right after the colon
+        while (*value == ' ') value++;        // skip the optional spaces after the colon
+
+        // Header names are case-insensitive in HTTP, so use strcasecmp (from <strings.h>)
+        // rather than strcmp. Copy the ones we care about with snprintf so we can't overflow.
+        if (strcasecmp(line, "Host") == 0)            snprintf(host, sizeof(host), "%s", value);
+        else if (strcasecmp(line, "User-Agent") == 0) snprintf(user_agent, sizeof(user_agent), "%s", value);
+        else if (strcasecmp(line, "Accept") == 0)     snprintf(accept, sizeof(accept), "%s", value);
+    }
+
+    // Step 6: print the parsed headers in a readable form.
+    printf("\n--- Parsed headers ---\n");
+    printf("Host: %s\n", host);
+    printf("User-Agent: %s\n", user_agent);
+    printf("Accept: %s\n", accept);
 
     ssize_t w = send(new_socket, hello, strlen(hello), MSG_NOSIGNAL);
     if (w < 0) {
