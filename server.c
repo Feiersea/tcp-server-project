@@ -83,6 +83,33 @@ int main()
     else if (n == 0) printf("client closed without sending\n");
     else             printf("Message: %s", buffer);   // buffer still has its '\n'
 
+    // Step 2: split the raw text by '\n' and keep only the first line.
+    // strchr finds the first '\n'; replacing it with '\0' ends the string there.
+    char *newline = strchr(buffer, '\n');
+    if (newline) *newline = '\0';
+
+    // HTTP lines end with "\r\n", so the '\r' is still on the end. Remove it.
+    size_t len = strlen(buffer);
+    if (len > 0 && buffer[len - 1] == '\r') buffer[len - 1] = '\0';
+
+    // Step 3: split the first line by spaces: "GET /hello HTTP/1.1"
+    // strtok cuts the string at each space and returns the piece before it.
+    // The first call takes the string; later calls pass NULL to continue.
+    char method[16] = {0};
+    char path[256] = {0};
+    char version[16] = {0};
+    char *token = strtok(buffer, " ");
+    if (token) snprintf(method, sizeof(method), "%s", token);
+    token = strtok(NULL, " ");
+    if (token) snprintf(path, sizeof(path), "%s", token);
+    token = strtok(NULL, " ");
+    if (token) snprintf(version, sizeof(version), "%s", token);
+
+    // Step 4: print what we stored
+    printf("Method: %s\n", method);
+    printf("Path: %s\n", path);
+    printf("Version: %s\n", version);
+
     ssize_t w = send(new_socket, hello, strlen(hello), MSG_NOSIGNAL);
     if (w < 0) {
         // -1 means the call failed, so errno tells us why
